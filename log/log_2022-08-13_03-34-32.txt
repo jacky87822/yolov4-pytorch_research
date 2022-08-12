@@ -1,0 +1,23 @@
+2022-08-13 03:34:33,563 evaluate_on_coco.py[line:324] INFO: Using device cuda
+2022-08-13 03:34:36,892 evaluate_on_coco.py[line:177] INFO: image input shape: 608/608
+2022-08-13 03:34:41,883 evaluate_on_coco.py[line:191] INFO: currently on image: 100/5000
+2022-08-13 03:34:46,437 evaluate_on_coco.py[line:191] INFO: currently on image: 200/5000
+2022-08-13 03:34:50,828 evaluate_on_coco.py[line:191] INFO: currently on image: 300/5000
+2022-08-13 03:34:55,515 evaluate_on_coco.py[line:191] INFO: currently on image: 400/5000
+2022-08-13 03:35:00,062 evaluate_on_coco.py[line:191] INFO: currently on image: 500/5000
+2022-08-13 03:35:04,723 evaluate_on_coco.py[line:191] INFO: currently on image: 600/5000
+2022-08-13 03:35:09,703 evaluate_on_coco.py[line:191] INFO: currently on image: 700/5000
+2022-08-13 03:35:14,376 evaluate_on_coco.py[line:191] INFO: currently on image: 800/5000
+2022-08-13 03:35:18,895 evaluate_on_coco.py[line:191] INFO: currently on image: 900/5000
+2022-08-13 03:35:23,635 evaluate_on_coco.py[line:191] INFO: currently on image: 1000/5000
+2022-08-13 03:35:28,222 evaluate_on_coco.py[line:191] INFO: currently on image: 1100/5000
+2022-08-13 03:35:32,827 evaluate_on_coco.py[line:191] INFO: currently on image: 1200/5000
+2022-08-13 03:35:37,349 evaluate_on_coco.py[line:191] INFO: currently on image: 1300/5000
+2022-08-13 03:35:41,893 evaluate_on_coco.py[line:191] INFO: currently on image: 1400/5000
+2022-08-13 03:35:46,640 evaluate_on_coco.py[line:191] INFO: currently on image: 1500/5000
+2022-08-13 03:35:51,112 evaluate_on_coco.py[line:191] INFO: currently on image: 1600/5000
+2022-08-13 03:35:55,597 evaluate_on_coco.py[line:191] INFO: currently on image: 1700/5000
+2022-08-13 03:36:00,257 evaluate_on_coco.py[line:191] INFO: currently on image: 1800/5000
+2022-08-13 03:36:04,833 evaluate_on_coco.py[line:191] INFO: currently on image: 1900/5000
+2022-08-13 03:36:09,342 evaluate_on_coco.py[line:191] INFO: currently on image: 2000/5000
+2022-08-13 03:36:13,800 evaluate_on_coco.py[line:191] INFO: currently on image: 2100/5000
