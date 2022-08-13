@@ -8,6 +8,7 @@ import struct
 import cupy
 import time
 from colorama import Fore, Back, Style
+import logging
 
 def binary(num):
     return ''.join('{:0>8b}'.format(c) for c in struct.pack('!f', num))
@@ -37,7 +38,7 @@ def inject(para_bin,inject_map,operation,device):
     elif operation=="bf":
         new_para_bin=torch.bitwise_xor(para_bin.int().to(device),inject_map.int().to(device))
     else:
-        exit()
+        new_para_bin=para_bin
     return new_para_bin.to(device)
     
 def bin2fp(para_bin,device,exp_bit=8,mant_bit=23):
@@ -174,14 +175,21 @@ def test_all(test,inject_map_copy,inj_para_copy,para,new_para,non_zeros,zeros,ma
                 count+=1
         print (zeros,non_zeros,non_zeros/zeros)
         print (max_exponent)
-        exit()
 
 def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="",test=False,save=""):
     model = torch.load(model_name)
     model=model.to(device)
     start = time.time()    
-    zeros=0
-    non_zeros=0
+    if protection == 4 and "TMR_" not in model_name:
+        logging.info("error model loading...")
+        exit()
+    if protection in [4.1,7,7.1] and "TMRs_" not in model_name:
+        logging.info("error model loading...")
+        exit()
+    if protection == [8,8.1] and "SECDED" not in model_name:
+        logging.info("error model loading...")
+        exit()
+        
     if protection in [6.1,6.2,7,7.1,8.1] or test:
         max_exponent=-5
         max_value=0
@@ -204,8 +212,11 @@ def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="
                     max_exponent=cur_max_exponent
                 
     with torch.no_grad():
+        zeros=0
+        non_zeros=0
+        para_num=0
         for layer, (name, para) in enumerate(model.named_parameters()): 
-            print (name)
+            #print (name)
             #print (binary(para))
             #print ("--------------------------------")
             mantissa, exponent = torch.frexp(para)
@@ -224,8 +235,8 @@ def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="
                 inject_map=torch.from_numpy(np.random.choice([0, 1], size=para_bin.shape, p=[1-BER, BER])).to(device)
             
             non_zeros +=inject_map.nonzero().size(0)
-            zeros += inject_map.numel() - non_zeros
-            
+            zeros += inject_map.numel() - inject_map.nonzero().size(0)
+
             # injection
             
             inj_para=inject(para_bin,inject_map,error_mode,device) 
@@ -327,25 +338,54 @@ def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="
 
             #########################################################################
             # check the bin 2 float convert
-            if test:
+            if test and layer==0:
                 test_all(test,inject_map_copy,inj_para_copy,para,new_para,non_zeros,zeros,max_exponent,device)
+            #print ("BER:",(non_zeros/zeros),non_zeros,zeros)
             model.state_dict()[name].data.copy_(new_para)
+            para_num+=len(new_para.flatten())
+            
         if save != "":
             torch.save(model, save)
+        new_max_value=0
+        new_min_value=0
+        with torch.no_grad():
+            for layer, (name, para) in enumerate(model.named_parameters()): 
+                cur_max_value=torch.max(para)
+                if cur_max_value>new_max_value:
+                    new_max_value=cur_max_value
+                    
+                cur_min_value=torch.min(para)
+                if cur_min_value<new_min_value:
+                    new_min_value=cur_min_value
+
     end = time.time()  
-    print ("cost time:",end-start)
-    print ("BER:",(zeros/non_zeros))
-    print (zeros,non_zeros)
+    logging.info("")
+    logging.info("============================")
+    logging.info("model  : "+str(model_name))
+    logging.info("#layer : "+str(layer+1))
+    logging.info("#para  : "+str(para_num))
+    logging.info("----------------------------")
+    logging.info("injmod : "+str(error_mode))
+    logging.info("prtmod : "+str(protection))
+    logging.info("#inject: "+str(non_zeros))
+    logging.info("BER    : {:.8f}".format(non_zeros/zeros))
+    logging.info("============================")
+    logging.info("")
     
     
     
-#inj_model(model_name="../model/yolov4_SECDED.pt",BER=1e-2,error_mode="bf",protection=1,test=False,save="./temp.pt")#,choice_device="cupy")
-#
-#
-#model = torch.load("./temp.pt")
-#model=model.to("cpu")
-#for layer, (name, para) in enumerate(model.named_parameters()): 
-#    para=para.flatten()
-#    for p in para:
-#        print (binary(p))
-#    exit()
+    return model,non_zeros,zeros,layer+1,para_num,new_max_value,new_min_value
+    
+    
+'''
+inj_model(model_name="../model/yolov4_SECDED.pt",BER=1e-8,error_mode="bf",protection=0,test=False)
+
+
+model = torch.load("./temp.pt")
+model=model.to("cpu")
+for layer, (name, para) in enumerate(model.named_parameters()): 
+    para=para.flatten()
+    for p in para:
+        print (binary(p))
+    exit()
+'''
