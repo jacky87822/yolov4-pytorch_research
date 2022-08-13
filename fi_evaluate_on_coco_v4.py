@@ -468,6 +468,8 @@ def get_args(**kwargs):
                         '(3) fix exponent (ideal) (4) TMR exponent (5) parity-zero (6) thres-zero', dest='protect')
     parser.add_argument('-hf', '--half_precision', type=bool, default=False,
                         help='True for inference by fp16', dest='half')    
+    parser.add_argument('-cp', '--inject_with_cupy', type=bool, default=False,
+                        help='using cupy to inject errors', dest='cp')   
     args = vars(parser.parse_args())
 
     for k in args.keys():
@@ -635,12 +637,16 @@ if __name__ == "__main__":
                     error_mode="sa0"
                 elif cfg.inj_mode==3:
                     error_mode="sa1"
+                cupy=""  
+                if cfg.cp:
+                    cupy="cupy"
                 model,errbin_num,freebin_num,layer_num,para_num,maxv,minv=inj_model(model_name=cfg.weights_file,
                                                        BER=in_ber,
                                                        error_mode=error_mode,
                                                        protection=cfg.protect,
                                                        test=cfg.tmode,
-                                                       device=device)
+                                                       device=device,
+                                                       choice_device=cupy)
                 #inj_list,check,num, [count_one_fault,count_multi_fault]=extended_func.fi_model(model, device, cfg.inj_mode, BER=in_ber, seed=cfg.seed)
                 num_inj_list=errbin_num
 
