@@ -640,16 +640,20 @@ if __name__ == "__main__":
                 cupy=""  
                 if cfg.cp:
                     cupy="cupy"
+                    device2="cuda:1"
+                else:
+                    device2="cuda:0"
+                    
                 model,errbin_num,freebin_num,layer_num,para_num,maxv,minv=inj_model(model_name=cfg.weights_file,
                                                        BER=in_ber,
                                                        error_mode=error_mode,
                                                        protection=cfg.protect,
                                                        test=cfg.tmode,
-                                                       device=device,
+                                                       device=device2,
                                                        choice_device=cupy)
                 #inj_list,check,num, [count_one_fault,count_multi_fault]=extended_func.fi_model(model, device, cfg.inj_mode, BER=in_ber, seed=cfg.seed)
                 num_inj_list=errbin_num
-
+                model.to(device)
                 ########################################################################################
                 # check annotations file
                 logging.info("check annotations file ...")

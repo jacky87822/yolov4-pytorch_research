@@ -12,9 +12,9 @@ args = parser.parse_args()
 
 #205
 if args.ip=='205' or args.ip=='all':
-    os.system("python fi_evaluate_on_coco_v4.py -s -30 -b -1 -m 1 -p 0 -cp 1")
-    os.system("python fi_evaluate_on_coco_v4.py -s -30 -b -1 -m 2 -p 0 -cp 1")
-    os.system("python fi_evaluate_on_coco_v4.py -s -30 -b -1 -m 3 -p 0 -cp 1")
+    os.system("python fi_evaluate_on_coco_v4.py -s -30 -b -1 -m 1 -p 0 ")
+    os.system("python fi_evaluate_on_coco_v4.py -s -30 -b -1 -m 2 -p 0 ")
+    os.system("python fi_evaluate_on_coco_v4.py -s -30 -b -1 -m 3 -p 0 ")
 #139
 if args.ip=='139' or args.ip=='all':
     os.system("python fi_evaluate_on_coco_v4.py -s -30 -b -1 -m 1 -p 1")
