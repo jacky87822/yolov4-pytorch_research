@@ -174,7 +174,7 @@ def test_all(test,inject_map_copy,inj_para_copy,para,new_para,non_zeros,zeros,ma
             if inj==0:
                 count+=1
         print (zeros,non_zeros,non_zeros/zeros)
-        print (max_exponent)
+        print ("max_exponent:",max_exponent)
 
 def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="",test=False,save=""):
     model = torch.load(model_name)
@@ -207,7 +207,7 @@ def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="
                 if cur_min_value<min_value:
                     min_value=cur_min_value
                     
-                cur_max_exponent=torch.min(exponent)
+                cur_max_exponent=torch.max(exponent)
                 if cur_max_exponent>max_exponent:
                     max_exponent=cur_max_exponent
                 
