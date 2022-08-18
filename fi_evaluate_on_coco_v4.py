@@ -453,7 +453,7 @@ def get_args(**kwargs):
                         default=1,
                         help='injection mode: (0)error-free (1)bit flip (2)SA0 (3)SA1', 
                         dest='inj_mode')
-    parser.add_argument('-b', '--ber', type=int, 
+    parser.add_argument('-b', '--ber', type=float, 
                         default=7,
                         help='Bit Error Rate', dest='ber')
     parser.add_argument('-s', '--seed', type=int, 
