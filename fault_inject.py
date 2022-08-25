@@ -295,6 +295,7 @@ def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="
                 _, new_exponent = torch.frexp(new_para)
                 masked=torch.zeros(new_para.shape).to(device)
                 new_para=torch.where((new_exponent>max_exponent),masked,new_para)
+                new_para=torch.where((abs(new_para)==float("inf")),masked,new_para)
                 
             # hybrid
             elif protection==7:
@@ -317,6 +318,7 @@ def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="
                 _, new_exponent = torch.frexp(new_para)
                 masked=torch.zeros(new_para.shape).to(device)
                 new_para=torch.where((new_exponent>max_exponent),masked,new_para)
+                new_para=torch.where((abs(new_para)==float("inf")),masked,new_para)
             
             # SECDED
             elif protection==8:
@@ -329,6 +331,7 @@ def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="
                 _, new_exponent = torch.frexp(new_para)
                 masked=torch.zeros(new_para.shape).to(device)
                 new_para=torch.where((new_exponent>max_exponent),masked,new_para)
+                new_para=torch.where((abs(new_para)==float("inf")),masked,new_para)
                 
             #########################################################################
             # without protection
@@ -369,6 +372,9 @@ def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="
     logging.info("prtmod : "+str(protection))
     logging.info("#inject: "+str(non_zeros))
     logging.info("BER    : {:.8f}".format(non_zeros/zeros))
+    logging.info("----------------------------")
+    logging.info("max_value : "+str(new_max_value.item()))
+    logging.info("min_value : "+str(new_min_value.item()))
     logging.info("============================")
     logging.info("")
     
