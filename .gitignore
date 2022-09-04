@@ -5,3 +5,7 @@ eva_result/
 analysis_weight/layers/
 backup/
 *.eps
+log/
+data/outcome
+temp.json
+data/coco_val_outputs.json
