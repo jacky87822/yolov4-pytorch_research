@@ -1,3 +1,7 @@
 result/
 __pycache__/
 *.py~
+eva_result/
+analysis_weight/layers/
+backup/
+*.eps

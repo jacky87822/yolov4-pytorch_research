@@ -35,3 +35,19 @@ for layer, (name, para) in enumerate(model.named_parameters()):
 print ("all:",torch.max(all).item(),torch.min(all).item())
 print ("all_bn:",torch.max(all_bn).item(),torch.min(all_bn).item())
 print ("all_conv:",torch.max(all_conv).item(),torch.min(all_conv).item())
+
+# distplot
+
+fig=plt.figure(figsize=(6,2))
+fig.set_rasterized(True)
+
+fig=sns.histplot(all.detach().numpy(),bins=100,binwidth=0.6, alpha  = 1)
+sns.set_style('whitegrid')
+plt.yscale("log")
+fig.set_axisbelow(True)
+plt.grid()
+plt.ylabel("# parameters",fontsize=12)
+plt.yticks(fontsize=10)
+plt.yticks(fontsize=10)
+plt.tight_layout()
+plt.savefig('test3.eps',format='eps',dpi=300)

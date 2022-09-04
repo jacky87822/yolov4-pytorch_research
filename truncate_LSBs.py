@@ -15,12 +15,13 @@ blind_list=[5,10,16,17,18,19,20,21,22,23]
 
 for blind in blind_list:
     test=False
-    i = 'yolov4-tiny'
+    i = 'yolov4'
+    sa=0
     FILE="../model/"+i+".pt"
-    FILE_half="../model/half_"+i+"_blind_"+str(blind)+".pt"
+    FILE_half="../model/half_"+i+"_b"+str(sa)+"_"+str(blind)+".pt"
     format="fp32"
     if format=="fp32":
-        FILE_half="../model/full_"+i+"_blind_"+str(blind)+".pt"
+        FILE_half="../model/full_"+i+"_b"+str(sa)+"_"+str(blind)+".pt"
 
 
     if format=="fp16":
@@ -60,9 +61,9 @@ for blind in blind_list:
                 temp=torch.remainder(n_mantissa.trunc(),2)
                 if (i>=index-blind):
                     if format=='fp16':
-                        temp=torch.full(temp.shape,0).half().to('cuda')
+                        temp=torch.full(temp.shape,int(sa)).half().to('cuda')
                     else:
-                        temp=torch.full(temp.shape,0).to('cuda')
+                        temp=torch.full(temp.shape,int(sa)).to('cuda')
                         
                 result_m=result_m+temp*(2**-i)
                 
