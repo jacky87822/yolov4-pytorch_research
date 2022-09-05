@@ -245,7 +245,7 @@ def inj_main(para, BER, error_mode,
     elif protection==3.4:
         inj_para[...,0:9]=para_bin[...,0:9]
         new_para=bin2fp(inj_para,device)
-    elif protection==3.4:
+    elif protection==3.5:
         inj_para[...,0:10]=para_bin[...,0:10]
         new_para=bin2fp(inj_para,device)
     
