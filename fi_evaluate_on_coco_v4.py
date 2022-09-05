@@ -640,7 +640,7 @@ if __name__ == "__main__":
                 cupy=""  
                 if cfg.cp:
                     cupy="cupy"
-                    device2="cuda:1"
+                    device2="cuda:0"
                 else:
                     device2="cuda:0"
                     
@@ -650,7 +650,8 @@ if __name__ == "__main__":
                                                        protection=cfg.protect,
                                                        test=cfg.tmode,
                                                        device=device2,
-                                                       choice_device=cupy)
+                                                       choice_device=cupy,
+                                                       embedded_preprocessing=False)
                 #inj_list,check,num, [count_one_fault,count_multi_fault]=extended_func.fi_model(model, device, cfg.inj_mode, BER=in_ber, seed=cfg.seed)
                 num_inj_list=errbin_num
                 model.to(device)

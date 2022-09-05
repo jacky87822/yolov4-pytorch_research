@@ -39,7 +39,7 @@ print ("all_conv:",torch.max(all_conv).item(),torch.min(all_conv).item())
 # distplot
 
 fig=plt.figure(figsize=(6,2))
-fig.set_rasterized(True)
+#fig.set_rasterized(True)
 
 fig=sns.histplot(all.detach().numpy(),bins=100,binwidth=0.6, alpha  = 1)
 sns.set_style('whitegrid')

@@ -22,6 +22,8 @@ for i in blind_list:
     os.system("python evaluate_on_coco.py -w "+FILE_half)
 os.system("python evaluate_on_coco.py -w ../model/yolov4-tiny.pt")
 '''
+files = os.listdir('eva_result')
+print (files)
 
 sa_list=[1,0]
 for sa in sa_list:
@@ -29,7 +31,9 @@ for sa in sa_list:
     name = 'yolov4'
     for i in blind_list:
         FILE_half="../model/full_"+str(name)+"_b"+str(sa)+"_"+str(i)+".pt"
-        os.system("python evaluate_on_coco.py -w "+FILE_half)
+        if "full_"+str(name)+"_b"+str(sa)+"_"+str(i)+'.txt' not in files:  
+            print ("\n\n===>", FILE_half)  
+            os.system("python evaluate_on_coco.py -w "+FILE_half)
 os.system("python evaluate_on_coco.py -w ../model/yolov4.pt")
 
 

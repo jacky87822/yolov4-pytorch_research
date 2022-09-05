@@ -176,28 +176,191 @@ def test_all(test,inject_map_copy,inj_para_copy,para,new_para,non_zeros,zeros,ma
         print (zeros,non_zeros,non_zeros/zeros)
         print ("max_exponent:",max_exponent)
 
-def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="",test=False,save=""):
-    model = torch.load(model_name)
+def inj_main(para, BER, error_mode,
+              protection, device, choice_device, test, save,
+              load_with_model, embedded_preprocessing,
+              non_zeros,zeros,max_value,min_value,max_exponent):
+    
+    mantissa, exponent = torch.frexp(para)
+    sign=torch.abs((para.sign()-1)/2).int()
+    exp_bin=dec2bin(exponent+126, bits=8)
+    mant_bin=mantissa_fp2bin(mantissa, bit=23)
+    sign.unsqueeze_(-1)
+    para_bin=torch.cat((sign,exp_bin,mant_bin),-1)
+    
+    #########################################################################
+    # prepocessing
+    if embedded_preprocessing:
+        if protection in [4.1,7,7.1]:
+            para_bin[...,16:24]=para_bin[...,0:8]
+            para_bin[...,24:]=para_bin[...,0:8]
+        elif protection in [4]:
+            para_bin[...,16:24]=para_bin[...,1:9]
+            para_bin[...,24:]=para_bin[...,1:9]
+        elif protection in [8,8.1]:
+            sign=abs((para.sign()-1)/2).int()
+            bin[...,28]=(sign+bin[...,0]+bin[...,2]+bin[...,3]+bin[...,5]+bin[...,7])%2
+            bin[...,29]=(sign+bin[...,1]+bin[...,2]+bin[...,4]+bin[...,5])%2
+            bin[...,30]=(bin[...,0]+bin[...,1]+bin[...,2]+bin[...,6]+bin[...,7])%2
+            bin[...,31]=(bin[...,3]+bin[...,4]+bin[...,5]+bin[...,6]+bin[...,7])%2
+    #########################################################################
+    # inject errors
+    if choice_device=="cupy":
+        inject_map=torch.as_tensor(cupy.random.choice([0, 1], size=para_bin.shape, p=[1-BER, BER]), device=device)
+    else:
+        inject_map=torch.from_numpy(np.random.choice([0, 1], size=para_bin.shape, p=[1-BER, BER])).to(device)
+    
+    non_zeros +=inject_map.nonzero().size(0)
+    zeros += inject_map.numel() - inject_map.nonzero().size(0)
+            
+    # injection
+    
+    inj_para=inject(para_bin,inject_map,error_mode,device) 
+    if test:
+        inject_map_copy=inject_map.clone().detach()
+        inj_para_copy=inj_para.clone().detach()
+    else:
+        inject_map_copy=None
+        inj_para_copy=None
+    #########################################################################
+    # bitwise protection
+    
+    # ideal zero-masking
+    if protection==1:
+        new_para=zero_masking_ideal(para,inject_map,device)
+        
+    # ideal exponent
+    elif protection==3:
+        inj_para[...,1:9]=para_bin[...,1:9]
+        new_para=bin2fp(inj_para,device)
+    elif protection==3.1:
+        inj_para[...,0:9]=para_bin[...,0:9]
+        new_para=bin2fp(inj_para,device)
+    elif protection==3.2:
+        inj_para[...,0:8]=para_bin[...,0:8]
+        new_para=bin2fp(inj_para,device)
+    elif protection==3.3:
+        inj_para[...,0:7]=para_bin[...,0:7]
+        new_para=bin2fp(inj_para,device)
+    elif protection==3.4:
+        inj_para[...,0:9]=para_bin[...,0:9]
+        new_para=bin2fp(inj_para,device)
+    elif protection==3.4:
+        inj_para[...,0:10]=para_bin[...,0:10]
+        new_para=bin2fp(inj_para,device)
+    
+    # TMR
+    elif protection==4:
+        v0=torch.bitwise_and(inj_para[...,1:9],inj_para[...,16:24])
+        v1=torch.bitwise_and(inj_para[...,1:9],inj_para[...,24:])
+        v2=torch.bitwise_and(inj_para[...,16:24],inj_para[...,24:])
+        v3=torch.bitwise_or(v0,v1)
+        inj_para[...,1:9]=torch.bitwise_or(v3,v2)
+        new_para=bin2fp(inj_para,device)
+    # TMRs
+    elif protection==4.1:
+        v0=torch.bitwise_and(inj_para[...,0:8],inj_para[...,16:24])
+        v1=torch.bitwise_and(inj_para[...,0:8],inj_para[...,24:])
+        v2=torch.bitwise_and(inj_para[...,16:24],inj_para[...,24:])
+        v3=torch.bitwise_or(v0,v1)
+        inj_para[...,0:8]=torch.bitwise_or(v3,v2)
+        new_para=bin2fp(inj_para,device)
+        
+    # parity-zero masking
+    elif protection==5:
+        new_para=bin2fp(inj_para,device)
+        new_para=zero_masking_parity(new_para,inject_map,device)
+        
+    # value threshold
+    elif protection==6.1:
+        new_para=bin2fp(inj_para,device)
+        #new_mantissa, new_exponent = torch.frexp(new_para)
+        masked=torch.zeros(new_para.shape).to(device)
+        new_para=torch.where(((new_para>max_value)|(new_para<min_value)),masked,new_para)
+    # exponent threshold
+    elif protection==6.2:
+        new_para=bin2fp(inj_para,device)
+        _, new_exponent = torch.frexp(new_para)
+        masked=torch.zeros(new_para.shape).to(device)
+        new_para=torch.where((new_exponent>max_exponent),masked,new_para)
+        new_para=torch.where((torch.abs(new_para)==float("inf")),masked,new_para)
+        
+    # hybrid
+    elif protection==7:
+        v0=torch.bitwise_and(inj_para[...,0:8],inj_para[...,16:24])
+        v1=torch.bitwise_and(inj_para[...,0:8],inj_para[...,24:])
+        v2=torch.bitwise_and(inj_para[...,16:24],inj_para[...,24:])
+        v3=torch.bitwise_or(v0,v1)
+        inj_para[...,0:8]=torch.bitwise_or(v3,v2)
+        new_para=bin2fp(inj_para,device)
+        masked=torch.zeros(new_para.shape).to(device)
+        new_para=torch.where(((new_para>max_value)|(new_para<min_value)),masked,new_para)
+        
+    elif protection==7.1:
+        v0=torch.bitwise_and(inj_para[...,0:8],inj_para[...,16:24])
+        v1=torch.bitwise_and(inj_para[...,0:8],inj_para[...,24:])
+        v2=torch.bitwise_and(inj_para[...,16:24],inj_para[...,24:])
+        v3=torch.bitwise_or(v0,v1)
+        inj_para[...,0:8]=torch.bitwise_or(v3,v2)
+        new_para=bin2fp(inj_para,device)
+        _, new_exponent = torch.frexp(new_para)
+        masked=torch.zeros(new_para.shape).to(device)
+        new_para=torch.where((new_exponent>max_exponent),masked,new_para)
+        new_para=torch.where((torch.abs(new_para)==float("inf")),masked,new_para)
+    
+    # SECDED
+    elif protection==8:
+        inj_para2=SECDED_de(inj_para,device)
+        new_para=bin2fp(inj_para2,device)
+        
+    elif protection==8.1:
+        inj_para2=SECDED_de(inj_para,device)
+        new_para=bin2fp(inj_para2,device)
+        _, new_exponent = torch.frexp(new_para)
+        masked=torch.zeros(new_para.shape).to(device)
+        new_para=torch.where((new_exponent>max_exponent),masked,new_para)
+        new_para=torch.where((torch.abs(new_para)==float("inf")),masked,new_para)
+        
+    #########################################################################
+    # without protection
+    else:
+        new_para=bin2fp(inj_para,device)
+        
+    return new_para,non_zeros,zeros,inject_map_copy,inj_para_copy
+
+
+
+def inj_model(model_name, BER, error_mode,
+              protection, device="cuda", choice_device="", test=False, save="",
+              load_with_model=False, embedded_preprocessing=False, seperate=4):
+    
+    if load_with_model:
+        model=model_name
+    else:
+        model = torch.load(model_name)
+        print (model_name)
     model=model.to(device)
     start = time.time()    
-    if protection == 4 and "TMR_" not in model_name:
-        logging.info("error model loading...")
-        exit()
-    if protection in [4.1,7,7.1] and "TMRs_" not in model_name:
-        logging.info("error model loading...")
-        exit()
-    if protection == [8,8.1] and "SECDED" not in model_name:
-        logging.info("error model loading...")
-        exit()
-        
-    if protection in [6.1,6.2,7,7.1,8.1] or test:
-        max_exponent=-5
-        max_value=0
-        min_value=0
+    if embedded_preprocessing==False:
+        if protection in [4] and "TMR_" not in model_name:
+            logging.info("error model loading...")
+            embedded_preprocessing=True
+            exit()
+        if protection in [4.1,7,7.1] and "TMRs_" not in model_name:
+            logging.info("error model loading...")
+            embedded_preprocessing=True
+            exit()
+        if protection in [8,8.1] and "SECDED" not in model_name:
+            logging.info("error model loading...")
+            embedded_preprocessing=True
+            exit()
+    max_exponent=-5
+    max_value=0
+    min_value=0   
+    if protection in [6.1,6.2,7,7.1,8.1] or test:  
         with torch.no_grad():
             for layer, (name, para) in enumerate(model.named_parameters()): 
-                para=para.flatten()
-                mantissa, exponent = torch.frexp(para)
+                _, exponent = torch.frexp(para)
                 
                 cur_max_value=torch.max(para)
                 if cur_max_value>max_value:
@@ -210,142 +373,45 @@ def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="
                 cur_max_exponent=torch.max(exponent)
                 if cur_max_exponent>max_exponent:
                     max_exponent=cur_max_exponent
-                
+            print (max_value,min_value,max_exponent)
     with torch.no_grad():
         zeros=0
         non_zeros=0
         para_num=0
         for layer, (name, para) in enumerate(model.named_parameters()): 
             #print (name)
-            #print (binary(para))
-            #print ("--------------------------------")
-            mantissa, exponent = torch.frexp(para)
-            sign=torch.abs((para.sign()-1)/2)
-            exp_bin=dec2bin(exponent+126, bits=8)
-            mant_bin=mantissa_fp2bin(mantissa, bit=23)
-            
-            sign.unsqueeze_(-1)
-            para_bin=torch.cat((sign,exp_bin,mant_bin),-1)
-            
-            #########################################################################
-            # inject errors
-            if choice_device=="cupy":
-                inject_map=torch.as_tensor(cupy.random.choice([0, 1], size=para_bin.shape, p=[1-BER, BER]), device=device)
+            #print (para.shape)
+            if seperate == 0 or torch.numel(para)<4096*1024:#para.shape[0]<=512:
+                new_para,non_zeros,zeros,inject_map_copy,inj_para_copy=inj_main(para, BER, error_mode,
+                        protection, device, choice_device, test, save,
+                        load_with_model, embedded_preprocessing,
+                        non_zeros,zeros,max_value,min_value,max_exponent)
+                model.state_dict()[name].data.copy_(new_para)
+                para_num+=torch.numel(new_para)
             else:
-                inject_map=torch.from_numpy(np.random.choice([0, 1], size=para_bin.shape, p=[1-BER, BER])).to(device)
-            
-            non_zeros +=inject_map.nonzero().size(0)
-            zeros += inject_map.numel() - inject_map.nonzero().size(0)
-
-            # injection
-            
-            inj_para=inject(para_bin,inject_map,error_mode,device) 
-            if test:
-                inject_map_copy=inject_map.clone().detach()
-                inj_para_copy=inj_para.clone().detach()
-            #########################################################################
-            # bitwise protection
-            
-            # ideal zero-masking
-            if protection==1:
-                new_para=zero_masking_ideal(para,inject_map,device)
+                print (name,"seperate:",seperate)
+                cur_seperate=seperate
+                if para.shape[0]%cur_seperate != 0:
+                    print ("error seperate")
+                    while (True):
+                        cur_seperate+=1
+                        #print ("try...",cur_seperate)
+                        if para.shape[0]%cur_seperate == 0:
+                            break
                 
-            # ideal exponent
-            elif protection==3:
-                inj_para[...,1:9]=para_bin[...,1:9]
-                new_para=bin2fp(inj_para,device)
-            elif protection==3.1:
-                inj_para[...,0:9]=para_bin[...,0:9]
-                new_para=bin2fp(inj_para,device)
-            elif protection==3.2:
-                inj_para[...,0:8]=para_bin[...,0:8]
-                new_para=bin2fp(inj_para,device)
-            
-            # TMR
-            elif protection==4:
-                v0=torch.bitwise_and(inj_para[...,1:9],inj_para[...,16:24])
-                v1=torch.bitwise_and(inj_para[...,1:9],inj_para[...,24:])
-                v2=torch.bitwise_and(inj_para[...,16:24],inj_para[...,24:])
-                v3=torch.bitwise_or(v0,v1)
-                inj_para[...,1:9]=torch.bitwise_or(v3,v2)
-                new_para=bin2fp(inj_para,device)
-            # TMRs
-            elif protection==4.1:
-                v0=torch.bitwise_and(inj_para[...,0:8],inj_para[...,16:24])
-                v1=torch.bitwise_and(inj_para[...,0:8],inj_para[...,24:])
-                v2=torch.bitwise_and(inj_para[...,16:24],inj_para[...,24:])
-                v3=torch.bitwise_or(v0,v1)
-                inj_para[...,0:8]=torch.bitwise_or(v3,v2)
-                new_para=bin2fp(inj_para,device)
-                
-            # parity-zero masking
-            elif protection==5:
-                new_para=bin2fp(inj_para,device)
-                new_para=zero_masking_parity(new_para,inject_map,device)
-                
-            # value threshold
-            elif protection==6.1:
-                new_para=bin2fp(inj_para,device)
-                #new_mantissa, new_exponent = torch.frexp(new_para)
-                masked=torch.zeros(new_para.shape).to(device)
-                new_para=torch.where(((new_para>max_value)|(new_para<min_value)),masked,new_para)
-            # exponent threshold
-            elif protection==6.2:
-                new_para=bin2fp(inj_para,device)
-                _, new_exponent = torch.frexp(new_para)
-                masked=torch.zeros(new_para.shape).to(device)
-                new_para=torch.where((new_exponent>max_exponent),masked,new_para)
-                new_para=torch.where((abs(new_para)==float("inf")),masked,new_para)
-                
-            # hybrid
-            elif protection==7:
-                v0=torch.bitwise_and(inj_para[...,0:8],inj_para[...,16:24])
-                v1=torch.bitwise_and(inj_para[...,0:8],inj_para[...,24:])
-                v2=torch.bitwise_and(inj_para[...,16:24],inj_para[...,24:])
-                v3=torch.bitwise_or(v0,v1)
-                inj_para[...,0:8]=torch.bitwise_or(v3,v2)
-                new_para=bin2fp(inj_para,device)
-                masked=torch.zeros(new_para.shape).to(device)
-                new_para=torch.where(((new_para>max_value)|(new_para<min_value)),masked,new_para)
-                
-            elif protection==7.1:
-                v0=torch.bitwise_and(inj_para[...,0:8],inj_para[...,16:24])
-                v1=torch.bitwise_and(inj_para[...,0:8],inj_para[...,24:])
-                v2=torch.bitwise_and(inj_para[...,16:24],inj_para[...,24:])
-                v3=torch.bitwise_or(v0,v1)
-                inj_para[...,0:8]=torch.bitwise_or(v3,v2)
-                new_para=bin2fp(inj_para,device)
-                _, new_exponent = torch.frexp(new_para)
-                masked=torch.zeros(new_para.shape).to(device)
-                new_para=torch.where((new_exponent>max_exponent),masked,new_para)
-                new_para=torch.where((abs(new_para)==float("inf")),masked,new_para)
-            
-            # SECDED
-            elif protection==8:
-                inj_para2=SECDED_de(inj_para,device)
-                new_para=bin2fp(inj_para2,device)
-                
-            elif protection==8.1:
-                inj_para2=SECDED_de(inj_para,device)
-                new_para=bin2fp(inj_para2,device)
-                _, new_exponent = torch.frexp(new_para)
-                masked=torch.zeros(new_para.shape).to(device)
-                new_para=torch.where((new_exponent>max_exponent),masked,new_para)
-                new_para=torch.where((abs(new_para)==float("inf")),masked,new_para)
-                
-            #########################################################################
-            # without protection
-            else:
-                new_para=bin2fp(inj_para,device)
-            torch.cuda.empty_cache()
-
-            #########################################################################
-            # check the bin 2 float convert
-            if test and layer==0:
-                test_all(test,inject_map_copy,inj_para_copy,para,new_para,non_zeros,zeros,max_exponent,device)
-            #print ("BER:",(non_zeros/zeros),non_zeros,zeros)
-            model.state_dict()[name].data.copy_(new_para)
-            para_num+=len(new_para.flatten())
+                sep=int(para.shape[0]/cur_seperate)
+                #print (sep)
+                for i in range(cur_seperate):
+                    print (para[sep*i:sep*(i+1),...].shape)
+                    new_para,non_zeros,zeros,inject_map_copy,inj_para_copy=inj_main(para[sep*i:sep*(i+1),...], BER, error_mode,
+                        protection, device, choice_device, test, save,
+                        load_with_model, embedded_preprocessing,
+                        non_zeros,zeros,max_value,min_value,max_exponent)
+                    #print (new_para.shape)
+                    model.state_dict()[name][sep*i:sep*(i+1),...].data.copy_(new_para)
+                    para_num+=torch.numel(new_para)
+                    if test and layer==0:
+                        test_all(test,inject_map_copy,inj_para_copy,para[sep*i:sep*(i+1),...],new_para,non_zeros,zeros,max_exponent,device)
             
         if save != "":
             torch.save(model, save)
@@ -364,7 +430,7 @@ def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="
     end = time.time()  
     logging.info("")
     logging.info("============================")
-    logging.info("model  : "+str(model_name))
+    #logging.info("model  : "+str(model_name))
     logging.info("#layer : "+str(layer+1))
     logging.info("#para  : "+str(para_num))
     logging.info("----------------------------")
@@ -372,15 +438,25 @@ def inj_model(model_name,BER,error_mode,protection,device="cuda",choice_device="
     logging.info("prtmod : "+str(protection))
     logging.info("#inject: "+str(non_zeros))
     logging.info("BER    : {:.8f}".format(non_zeros/zeros))
-    logging.info("----------------------------")
-    logging.info("max_value : "+str(new_max_value.item()))
-    logging.info("min_value : "+str(new_min_value.item()))
     logging.info("============================")
     logging.info("")
-    
-    
-    
+    torch.cuda.empty_cache()
     return model,non_zeros,zeros,layer+1,para_num,new_max_value,new_min_value
+    
+    
+'''
+inj_model(model_name="../model/yolov4_SECDED.pt",BER=1e-8,error_mode="bf",protection=0,test=False)
+
+
+model = torch.load("./temp.pt")
+model=model.to("cpu")
+for layer, (name, para) in enumerate(model.named_parameters()): 
+    para=para.flatten()
+    for p in para:
+        print (binary(p))
+    exit()
+'''
+
     
     
 '''
