@@ -470,6 +470,8 @@ def get_args(**kwargs):
                         help='True for inference by fp16', dest='half')    
     parser.add_argument('-cp', '--inject_with_cupy', type=bool, default=False,
                         help='using cupy to inject errors', dest='cp')   
+    parser.add_argument('-sf', '--start_from', type=float, default=-1,
+                        help='staring BER', dest='sf')  
     args = vars(parser.parse_args())
 
     for k in args.keys():
@@ -523,6 +525,9 @@ if __name__ == "__main__":
         default_ber=[0, 1e-7]
     else:
         default_ber=[0, 1e-8]
+    if cfg.sf != -1:
+        default_ber[-1]=[cfg.sf]
+    
     #default_ber=[0.004, 0.003, 0.002, 0.001, 0.0007, 0.0005, 0.0003, 0.0001, 0.00001, 0.000001, 0.0000001]
     ber_list=[]
     if cfg.ber==-1:
